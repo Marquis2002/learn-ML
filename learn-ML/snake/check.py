@@ -1,31 +1,32 @@
-import gymnasium as gym
-from stable_baselines3 import A2C, PPO
-import  os
-import pickletools
+from stable_baselines3 import PPO
+from snakeenv import SnekEnv
 
-models_dir = "models/PPO"
+env  = SnekEnv()
+episodes = 50
+# model = PPO ('MlpPolicy', env, verbose=1)
+# model.learn(total_timesteps = 100)
+# vec_env = model.get_env()
+# obs = vec_env.reset()
+#
+# for ep in range(episodes):
+#     done = False
+#     while not done:
+#         action, _states = model.predict(obs)
+#         obs, rewards, done, info = vec_env.step(action)
+#         env.render()
+#         print(rewards)
 
-if not os.path.exists(models_dir):
-    os.makedirs(models_dir)
 
-env = gym.make('LunarLander-v2', render_mode='human')
-env.reset()
-model_path = f"{models_dir}/30.zip"
-model = PPO.load(model_path, env=env)
-
-vec_env = model.get_env()
-
-episodes = 5
-for ep in range(episodes):
-    obs = vec_env.reset()
+for episodes in range(episodes):
     done = False
-    while not done:
-        action, _states = model.predict(obs)
-        obs, rewards, done, info = vec_env.step(action)
-        env.render()
-        print(rewards)
-#
-#
+    obs = env.reset()
+    while True:
+        random_action = env.action_space.sample()
+        print('action', random_action)
+        obs, reward, done, info = env.step(random_action)
+        print('reward', reward)
+
+
 # model = PPO('MlpPolicy', env, verbose=1)
 # TIMESTEPS = 10
 # iters = 0
@@ -67,5 +68,3 @@ for ep in range(episodes):
 # print('observation space shape', env.observation_space.shape)
 #
 # print('sample observation', env.observation_space.sample())
-
-env.close()
