@@ -96,13 +96,13 @@ def display_game_data(game_data):
     ax.set_yticks(range(n))
     ax.grid(which='both')
 
-    plt.savefig('test3.png')
+    plt.savefig('test1.png')
 
     # plt.show()
 
 
 if __name__ == '__main__':
-    filename = "../data/testcase3.in"  # Update this to the correct path if necessary
+    filename = "../data/testcase1.in"  # Update this to the correct path if necessary
     info_dict = parse_game_data_from_file(filename)
     # if info_dict:
-        # display_game_data(info_dict)
+    #     display_game_data(info_dict)
