@@ -3,6 +3,7 @@ from parse_game import parse_game_data_from_file
 
 score = 0
 
+
 class Base:
     def __init__(self, x, y, fuel, missile, defense, value):
         self.x = x
@@ -75,15 +76,17 @@ class Fighter:
         return None
 
     def refuel(self, count):
-        if self.current_fuel + count <= self.fuel_capacity:
-            self.current_fuel += count
-            return f"fuel {self.id} {count}"
+        if count > 0 and self.current_fuel < self.fuel_capacity:
+            actual_refuel = min(count, self.fuel_capacity - self.current_fuel)
+            self.current_fuel += actual_refuel
+            return f"fuel {self.id} {actual_refuel}"
         return None
 
     def reload(self, count):
-        if self.current_missiles + count <= self.missile_capacity:
-            self.current_missiles += count
-            return f"missile {self.id} {count}"
+        if count > 0 and self.current_missiles < self.missile_capacity:
+            actual_reload = min(count, self.missile_capacity - self.current_missiles)
+            self.current_missiles += actual_reload
+            return f"missile {self.id} {actual_reload}"
         return None
 
     def generate_actions(self):
@@ -110,6 +113,7 @@ class Fighter:
                         actions.append(action)
                     base.missile -= missile_amount
 
+        # Attack nearby bases if possible
         if self.current_missiles > 0:
             for direction, (dx, dy) in enumerate([(-1, 0), (1, 0), (0, -1), (0, 1)]):
                 target_x, target_y = self.x + dx, self.y + dy
@@ -121,7 +125,8 @@ class Fighter:
                             actions.append(action)
                         break
 
-        if not self.moved_this_frame:
+        # Move towards the closest existing red base
+        if not self.moved_this_frame and self.current_fuel > 0:
             target_base = min(self.red_bases,
                               key=lambda b: (abs(b.x - self.x) + abs(b.y - self.y)) if not b.destroyed else float('inf'))
             if not target_base.destroyed:
@@ -157,7 +162,7 @@ class Fighter:
 
 def main():
 
-    filename = "../data/testcase2.in"
+    filename = "../data/testcase4.in"
     info_dict = parse_game_data_from_file(filename)
 
     map_size_info = info_dict['map_size']

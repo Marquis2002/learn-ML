@@ -199,6 +199,8 @@ def main():
 
         for fighter in fighters:
             fighter.moved_this_frame = False
+
+        for fighter in fighters:
             fighter_actions = fighter.generate_actions()
             actions.extend(fighter_actions)
 
