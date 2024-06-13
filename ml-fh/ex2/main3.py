@@ -1,4 +1,4 @@
-import base64
+import heapq
 from parse_game import parse_game_data_from_file
 
 score = 0
@@ -27,6 +27,7 @@ class Fighter:
         self.blue_bases = blue_bases
         self.red_bases = red_bases
         self.moved_this_frame = False
+        self.target_base = None
 
     def is_in_bounds(self, x, y):
         n, m = map_layout.shape
@@ -125,44 +126,133 @@ class Fighter:
                             actions.append(action)
                         break
 
-        # Move towards the closest existing red base
+        # Move towards the chosen base
+        target_base_attack = min(self.red_bases,
+                                 key=lambda b: (abs(b.x - self.x) + abs(b.y - self.y)) if not b.destroyed else float(
+                                     'inf'))
+        path_attack = self.a_star_attack(self.x, self.y, target_base_attack.x, target_base_attack.y)
+        len_attack = len(path_attack)
+
+        target_base_missile = min(self.blue_bases,
+                                  key=lambda b: (abs(b.x - self.x) + abs(
+                                      b.y - self.y)) if b.missile > 0 else float(
+                                      'inf'))
+        path_missile = self.a_star(self.x, self.y, target_base_missile.x, target_base_missile.y)
+        len_missile = len(path_missile)
+
+        target_base_fuel = min(self.blue_bases,
+                               key=lambda b: (
+                                       abs(b.x - self.x) + abs(b.y - self.y)) if b.fuel > 0 else float(
+                                   'inf'))
+        path_fuel = self.a_star(self.x, self.y, target_base_fuel.x, target_base_fuel.y)
+        len_fuel = len(path_fuel)
+
         if not self.moved_this_frame and self.current_fuel > 0:
-            target_base = min(self.red_bases,
-                              key=lambda b: (abs(b.x - self.x) + abs(b.y - self.y)) if not b.destroyed else float('inf'))
-            if not target_base.destroyed:
-                if self.x < target_base.x:
-                    if not any(base.x == self.x + 1 and base.y == self.y and not base.destroyed for base in self.red_bases):
+            self.target_base = target_base_attack
+            path = self.a_star_attack(self.x, self.y, self.target_base.x, self.target_base.y)
+            if not self.target_base.destroyed:
+                if path_attack and len(path_attack) > 1:
+                    if self.current_missiles == 0:
+                        self.target_base = target_base_missile
+                        path = self.a_star(self.x, self.y, self.target_base.x, self.target_base.y)
+
+                    if len(path) > self.current_fuel:
+                        self.target_base = target_base_fuel
+                        path = self.a_star(self.x, self.y, self.target_base.x, self.target_base.y)
+
+                    next_step = path[1]
+                    if next_step[0] > self.x:
                         action = self.move(1)
-                        if action:
-                            actions.append(action)
-                        self.moved_this_frame = True
-                elif self.x > target_base.x:
-                    if not any(base.x == self.x - 1 and base.y == self.y and not base.destroyed for base in self.red_bases):
+                    elif next_step[0] < self.x:
                         action = self.move(0)
-                        if action:
-                            actions.append(action)
-                        self.moved_this_frame = True
-                elif self.y < target_base.y:
-                    if not any(base.x == self.x and base.y == self.y + 1 and not base.destroyed for base in self.red_bases):
+                    elif next_step[1] > self.y:
                         action = self.move(3)
-                        if action:
-                            actions.append(action)
-                        self.moved_this_frame = True
-                elif self.y > target_base.y:
-                    if not any(base.x == self.x and base.y == self.y - 1 and not base.destroyed for base in self.red_bases):
+                    elif next_step[1] < self.y:
                         action = self.move(2)
-                        if action:
-                            actions.append(action)
+                    if action:
+                        actions.append(action)
                         self.moved_this_frame = True
-            else:
-                print("Error!")
 
         return actions
 
+    def a_star_attack(self, start_x, start_y, goal_x, goal_y):
+        open_set = []
+        heapq.heappush(open_set, (0, start_x, start_y))
+        came_from = {}
+        g_score = {(start_x, start_y): 0}
+        f_score = {(start_x, start_y): abs(start_x - goal_x) + abs(start_y - goal_y)}
+
+        red_base_positions = {(base.x, base.y) for base in self.red_bases}  # 将红方基地位置存储为集合，便于快速查找
+
+        while open_set:
+            _, current_x, current_y = heapq.heappop(open_set)
+            if (current_x, current_y) == (goal_x, goal_y):
+                path = []
+                while (current_x, current_y) in came_from:
+                    path.append((current_x, current_y))
+                    current_x, current_y = came_from[(current_x, current_y)]
+                path.append((start_x, start_y))
+                path.reverse()
+                return path
+
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                neighbor_x, neighbor_y = current_x + dx, current_y + dy
+                if not self.is_in_bounds(neighbor_x, neighbor_y):
+                    continue
+                tentative_g_score = g_score[(current_x, current_y)] + 1
+
+                if (neighbor_x, neighbor_y) not in g_score or tentative_g_score < g_score[(neighbor_x, neighbor_y)]:
+                    came_from[(neighbor_x, neighbor_y)] = (current_x, current_y)
+                    g_score[(neighbor_x, neighbor_y)] = tentative_g_score
+                    f_score[(neighbor_x, neighbor_y)] = tentative_g_score + abs(neighbor_x - goal_x) + abs(
+                        neighbor_y - goal_y)
+                    heapq.heappush(open_set, (f_score[(neighbor_x, neighbor_y)], neighbor_x, neighbor_y))
+
+        return []
+
+    def a_star(self, start_x, start_y, goal_x, goal_y):
+        open_set = []
+        heapq.heappush(open_set, (0, start_x, start_y))
+        came_from = {}
+        g_score = {(start_x, start_y): 0}
+        f_score = {(start_x, start_y): abs(start_x - goal_x) + abs(start_y - goal_y)}
+
+        red_base_positions = {(base.x, base.y) for base in self.red_bases}  # 将红方基地位置存储为集合，便于快速查找
+
+        while open_set:
+            _, current_x, current_y = heapq.heappop(open_set)
+            if (current_x, current_y) == (goal_x, goal_y):
+                path = []
+                while (current_x, current_y) in came_from:
+                    path.append((current_x, current_y))
+                    current_x, current_y = came_from[(current_x, current_y)]
+                path.append((start_x, start_y))
+                path.reverse()
+                return path
+
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                neighbor_x, neighbor_y = current_x + dx, current_y + dy
+                if not self.is_in_bounds(neighbor_x, neighbor_y):
+                    continue
+                tentative_g_score = g_score[(current_x, current_y)] + 1
+
+                # 跳过红方基地的位置
+                if (neighbor_x, neighbor_y) in red_base_positions:
+                    continue
+                tentative_g_score = g_score[(current_x, current_y)] + 1
+
+                if (neighbor_x, neighbor_y) not in g_score or tentative_g_score < g_score[(neighbor_x, neighbor_y)]:
+                    came_from[(neighbor_x, neighbor_y)] = (current_x, current_y)
+                    g_score[(neighbor_x, neighbor_y)] = tentative_g_score
+                    f_score[(neighbor_x, neighbor_y)] = tentative_g_score + abs(neighbor_x - goal_x) + abs(
+                        neighbor_y - goal_y)
+                    heapq.heappush(open_set, (f_score[(neighbor_x, neighbor_y)], neighbor_x, neighbor_y))
+
+        return []
+
 
 def main():
-
-    filename = "../data/testcase4.in"
+    filename = "./data/testcase9.in"
     info_dict = parse_game_data_from_file(filename)
 
     map_size_info = info_dict['map_size']
@@ -194,16 +284,22 @@ def main():
     fighters = []
     for fighter_id in range(len(fighters_info)):
         fighter_info = fighters_info[fighter_id]
-        fighter = Fighter(fighter_id, fighter_info[0], fighter_info[1], fighter_info[2], fighter_info[3], blue_bases, red_bases)
+        fighter = Fighter(fighter_id, fighter_info[0], fighter_info[1], fighter_info[2], fighter_info[3], blue_bases,
+                          red_bases)
         fighters.append(fighter)
 
     frame_count = 0
+    debug_flag = 1
     while frame_count < 15000:
         frame_count += 1
         actions = []
 
+        if frame_count == debug_flag * 100:
+            debug_flag += 1
         for fighter in fighters:
             fighter.moved_this_frame = False
+
+        for fighter in fighters:
             fighter_actions = fighter.generate_actions()
             actions.extend(fighter_actions)
 
@@ -211,6 +307,7 @@ def main():
             print(action)
 
         print("OK")
+
 
 if __name__ == "__main__":
     main()
